@@ -57,6 +57,7 @@
   .liens { display: flex; align-items: center; gap: 4px; }
   .liens a { text-decoration: none; padding: 6px 12px; border-radius: 999px; color: var(--doux); font-size: 14px; }
   .liens a:hover { color: var(--texte); background: var(--fond); }
+  .liens a.bouton, .liens a.bouton:hover { color: var(--sur-encre); background: var(--encre); margin-left: 4px; }
 
   /* Boutons */
   .bouton {
@@ -90,7 +91,7 @@
   section { padding: 72px 0 0; }
   h2 { font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.035em; font-weight: 650; }
   .sous-titre { color: var(--doux); margin-top: 10px; max-width: 620px; }
-  .grille { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 28px; }
+  .grille { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
   .fait { background: var(--carte); border: 1px solid var(--filet); border-radius: 20px; padding: 24px; }
   .fait h3 { font-size: 18px; letter-spacing: -0.02em; font-weight: 600; margin-top: 18px; }
   .fait p { color: var(--doux); margin-top: 6px; font-size: 15px; }
@@ -108,7 +109,7 @@
   .ecran-mini.vide::after { display: none; }
 
   /* Fonctionnement */
-  .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 28px; }
+  .deux { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
   .bloc { background: var(--carte); border: 1px solid var(--filet); border-radius: 20px; padding: 28px; }
   .bloc h3 { font-size: 18px; letter-spacing: -0.02em; font-weight: 600; }
   .bloc p, .bloc li { color: var(--doux); font-size: 15px; }
