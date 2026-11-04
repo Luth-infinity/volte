@@ -2,7 +2,7 @@
 
 # Volte
 
-Passe l'app de bureau Claude d'un compte à l'autre, sans se reconnecter.
+Passe l'app de bureau Claude d'un compte à l'autre, sans se reconnecter. Site : [volte-lake.vercel.app](https://volte-lake.vercel.app)
 
 L'app Claude ne garde qu'un compte à la fois : changer de compte, c'est se déconnecter puis se reconnecter. Volte donne à chaque compte son propre dossier de données et relance Claude sur le bon. Chaque compte reste connecté, avec son historique local, ses connecteurs et la position de sa fenêtre.
 
