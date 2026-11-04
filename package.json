@@ -1,0 +1,55 @@
+{
+  "name": "volte",
+  "version": "0.1.0",
+  "description": "Passe l’app Claude d’un compte à l’autre, sans se reconnecter.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "check": "node check.js",
+    "dist": "electron-builder --mac dmg --arm64 --x64 --win nsis --x64",
+    "dist:mac-local": "electron-builder --mac dir --arm64"
+  },
+  "devDependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "electron": "^41.2.0",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.luthinfinity.volte",
+    "productName": "Volte",
+    "files": [
+      "main.js",
+      "claude.js",
+      "preload.js",
+      "ecran.html",
+      "reglages.html",
+      "polices/**",
+      "package.json"
+    ],
+    "toolsets": {
+      "nsis": "1.2.1"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.utilities",
+      "identity": null,
+      "extendInfo": {
+        "LSUIElement": true
+      },
+      "artifactName": "Volte-${version}-mac-${arch}.${ext}"
+    },
+    "win": {
+      "target": "nsis",
+      "artifactName": "Volte-${version}-windows-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    }
+  },
+  "productName": "Volte",
+  "author": "Luth",
+  "license": "MIT",
+  "repository": "github:Luth-infinity/volte"
+}

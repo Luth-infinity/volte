@@ -1,0 +1,12 @@
+# Changelog
+
+## 0.1.0 — 4 novembre 2026
+
+Première version.
+
+- Bascule de l'app Claude d'un compte à l'autre avec un raccourci (⌘⌥C sur Mac, Ctrl+Alt+C sur Windows) ou depuis la barre de menus.
+- Chaque compte garde sa propre session : plus besoin de se reconnecter à chaque changement.
+- Transition animée : le profil se désintègre en poussière et l'autre se reforme.
+- Fenêtre de réglages : comptes illimités, photo et couleur par compte, raccourci direct par compte, lancement à l'ouverture de session.
+- Claude rouvre sur le même écran et à la même place qu'avant la bascule.
+- Version Windows en aperçu (pas encore éprouvée sur une vraie machine).

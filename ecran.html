@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Volte</title>
+<style>
+  /* Verre : le flou est natif (vibrancy sur Mac, acrylique sur Windows). Par-dessus, un voile léger
+     garantit le contraste du texte quel que soit ce qu'il y a derrière la fenêtre. */
+  @font-face { font-family: "Geist"; src: url("polices/geist.woff2") format("woff2"); font-weight: 100 900; }
+  :root {
+    --voile: rgba(255, 255, 255, 0.34);
+    --texte: #111113;
+    --doux: #5b5b63;
+    --filet: rgba(255, 255, 255, 0.55);
+  }
+  :root[data-theme="dark"] {
+    --voile: rgba(24, 24, 27, 0.45);
+    --texte: #f6f6f7;
+    --doux: #a1a1aa;
+    --filet: rgba(255, 255, 255, 0.1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --voile: rgba(24, 24, 27, 0.45);
+      --texte: #f6f6f7;
+      --doux: #a1a1aa;
+      --filet: rgba(255, 255, 255, 0.1);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: transparent; height: 100%; overflow: hidden; }
+  body {
+    font: 13px/1.4 "Geist", -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-feature-settings: "ss01";
+    color: var(--texte);
+    -webkit-user-select: none;
+    cursor: default;
+  }
+  .carte {
+    height: 100%;
+    padding: 4px 0 24px;
+    background: var(--voile);
+    box-shadow: inset 0 0 0 1px var(--filet);
+    display: flex; flex-direction: column; align-items: center;
+  }
+  canvas { width: 280px; height: 164px; }
+  .nom { font-size: 18px; font-weight: 600; letter-spacing: -0.025em; transition: opacity 0.2s; }
+  .nom.cache { opacity: 0; }
+  .etat { margin-top: 3px; color: var(--doux); font-weight: 450; letter-spacing: -0.005em; }
+  .etat.erreur { color: #e5484d; }
+</style>
+</head>
+<body>
+  <div class="carte">
+    <canvas id="c"></canvas>
+    <div class="nom" id="nom"></div>
+    <div class="etat" id="etat"></div>
+  </div>
+<script>
+  // Désintégration en poussière : chaque pixel de l'avatar devient un grain. L'érosion balaie
+  // l'avatar et les grains s'envolent avec le vent ; le profil suivant se reforme à partir de
+  // grains qui arrivent de l'autre côté.
+  // L'animation suit sa propre horloge, d'une traite : elle n'attend pas que Claude se ferme
+  // (sinon la carte reste vide un moment, ce qui se lit comme un freeze).
+  const CW = 280, CH = 164 // canvas, en px CSS
+  const AVATAR = 96
+  const VIE = 0.8 // s : durée de vol d'un grain
+  const BALAYAGE = 0.5 // s : temps que met l'érosion à traverser l'avatar
+  const ALEA = 0.15 // s : irrégularité du front d'érosion
+  const DUREE = BALAYAGE + ALEA + VIE
+  const ATTENTE = 0.15 // s : on laisse voir d'où l'on part
+  const CROISEMENT = 0.45 // s : l'arrivée commence pendant que le départ s'envole
+
+  const dpr = Math.max(1, Math.round(devicePixelRatio || 1))
+  const canvas = document.getElementById('c')
+  canvas.width = CW * dpr
+  canvas.height = CH * dpr
+  const W = canvas.width, H = canvas.height
+  const ctx = canvas.getContext('2d')
+  const image = ctx.createImageData(W, H)
+  const tampon = new Uint32Array(image.data.buffer)
+  const S = AVATAR * dpr
+  const OX = Math.round((W - S) / 2), OY = Math.round((H - S) / 2)
+
+  // Image ronde du compte (photo ou initiale sur sa couleur), à la résolution de l'écran.
+  const policePrete = document.fonts.load('600 40px Geist') // les initiales sont dessinées en Geist
+  function avatar({ nom, couleur, photo }) {
+    return policePrete.then(() => new Promise((resolve) => {
+      const c = document.createElement('canvas')
+      c.width = c.height = S
+      const g = c.getContext('2d', { willReadFrequently: true })
+      g.beginPath(); g.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2); g.clip()
+      g.fillStyle = couleur
+      g.fillRect(0, 0, S, S)
+      const fin = () => resolve(g.getImageData(0, 0, S, S).data)
+      if (!photo) {
+        g.fillStyle = '#fff'
+        g.font = `600 ${38 * dpr}px Geist, -apple-system, system-ui, sans-serif`
+        g.textAlign = 'center'; g.textBaseline = 'middle'
+        g.fillText(nom.slice(0, 1).toUpperCase(), S / 2, S / 2 + 2 * dpr)
+        return fin()
+      }
+      const img = new Image()
+      img.onload = () => { g.drawImage(img, 0, 0, S, S); fin() }
+      img.onerror = fin
+      img.src = photo
+    }))
+  }
+
+  // Un grain par pixel opaque. sens = 1 : part vers la droite ; sens = -1 : arrive par la gauche.
+  function grains(px, sens) {
+    let n = 0
+    for (let i = 3; i < px.length; i += 4) if (px[i] > 10) n++
+    const g = {
+      n, x: new Float32Array(n), y: new Float32Array(n), rgb: new Uint32Array(n), a: new Uint8Array(n),
+      retard: new Float32Array(n), vx: new Float32Array(n), vy: new Float32Array(n), ph: new Float32Array(n), sens,
+    }
+    let k = 0
+    for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
+      const o = (j * S + i) * 4
+      if (px[o + 3] <= 10) continue
+      g.x[k] = OX + i
+      g.y[k] = OY + j
+      g.rgb[k] = (px[o + 2] << 16) | (px[o + 1] << 8) | px[o]
+      g.a[k] = px[o + 3]
+      const u = sens === 1 ? 1 - i / S : i / S // le bord côté vent part (ou se pose) en premier
+      g.retard[k] = (u * 0.8 + (j / S) * 0.2) * BALAYAGE + Math.random() * ALEA
+      g.vx[k] = (26 + Math.random() * 70) * dpr
+      g.vy[k] = (8 + Math.random() * 44) * dpr
+      g.ph[k] = Math.random() * 6.283
+      k++
+    }
+    return g
+  }
+
+  // Écrit les grains dans le tampon. t = secondes écoulées depuis le début de la phase.
+  function dessiner(g, t) {
+    const { n, x, y, rgb, a, retard, vx, vy, ph, sens } = g
+    for (let k = 0; k < n; k++) {
+      // tau = temps de vol : depuis le départ (sens 1) ou avant l'arrivée (sens -1)
+      const tau = sens === 1 ? t - retard[k] : retard[k] + VIE - t
+      let px = x[k], py = y[k], alpha = a[k]
+      if (tau >= VIE) continue // déjà envolé, ou pas encore arrivé
+      if (tau > 0) {
+        const vie = tau / VIE
+        const tourbillon = Math.sin(tau * 5 + ph[k]) * 7 * dpr * vie
+        px += sens * (vx[k] * tau + vx[k] * 0.9 * tau * tau) + tourbillon
+        py += -vy[k] * tau - vy[k] * 0.6 * tau * tau + Math.cos(tau * 4 + ph[k]) * 4 * dpr * vie
+        alpha *= Math.pow(1 - vie, 1.7)
+        if (alpha < 3) continue
+      }
+      const ix = px | 0, iy = py | 0
+      if (ix < 0 || iy < 0 || ix >= W || iy >= H) continue
+      tampon[iy * W + ix] = ((alpha & 255) << 24 | rgb[k]) >>> 0
+    }
+  }
+
+  let A = null, B = null, couleurB = '#888'
+  let debutA = 0, debutB = 0, debutAnneau = null
+  let anime = false
+  let pret = Promise.resolve()
+
+  function image_(maintenant) {
+    const s = maintenant / 1000
+    tampon.fill(0)
+    if (A && s < debutB + DUREE) dessiner(A, Math.max(0, s - debutA))
+    if (B) dessiner(B, s - debutB)
+    ctx.putImageData(image, 0, 0)
+    let fini = s > debutB + DUREE
+    if (debutAnneau !== null) { // anneau de confirmation, à la couleur du compte rejoint
+      const t = Math.min(1, Math.max(0, (s - debutAnneau) / 0.3))
+      const e = 1 - Math.pow(1 - t, 3)
+      ctx.globalAlpha = e
+      ctx.strokeStyle = couleurB
+      ctx.lineWidth = 2.5 * dpr
+      ctx.beginPath(); ctx.arc(W / 2, H / 2, S / 2 + (4 + 2 * e) * dpr, 0, Math.PI * 2); ctx.stroke()
+      ctx.globalAlpha = 1
+      fini = fini && t >= 1
+    }
+    if (fini) anime = false // tout est posé : on arrête de redessiner
+  }
+  function boucle(maintenant) {
+    image_(maintenant)
+    if (anime) requestAnimationFrame(boucle)
+  }
+  function lancer() {
+    if (!anime) { anime = true; requestAnimationFrame(boucle) }
+  }
+
+  // Appelé par main.js : etat({ de, vers, etape: 0 | 1 | 2, erreur? }).
+  //   0 : joue toute la transition (départ puis arrivée), d'une traite
+  //   1 : Claude se relance ; 2 : Claude est prêt (anneau)
+  // Renvoie le temps (ms) qu'il reste avant la fin de l'animation en cours.
+  window.etat = async ({ de, vers, etape, erreur }) => {
+    const nom = document.getElementById('nom')
+    const ligne = document.getElementById('etat')
+    const maintenant = () => performance.now() / 1000
+    if (etape === 0) {
+      nom.textContent = de.nom
+      nom.classList.remove('cache')
+      ligne.textContent = 'Fermeture de la session'
+      A = B = null
+      debutAnneau = null
+      pret = Promise.all([avatar(de), avatar(vers)]).then(([pa, pb]) => {
+        A = grains(pa, 1)
+        B = grains(pb, -1)
+        couleurB = vers.couleur
+        debutA = maintenant() + ATTENTE
+        debutB = debutA + CROISEMENT
+        nom.classList.add('cache')
+        setTimeout(() => { nom.textContent = vers.nom; nom.classList.remove('cache') }, (debutB + BALAYAGE * 0.5 - maintenant()) * 1000)
+        lancer()
+      })
+    }
+    await pret
+    if (etape === 1) ligne.textContent = `Ouverture de ${vers.nom}…`
+    if (etape === 2) {
+      debutAnneau = Math.max(maintenant(), debutB + DUREE)
+      ligne.textContent = 'Prêt'
+      lancer()
+    }
+    ligne.classList.toggle('erreur', !!erreur)
+    if (erreur) ligne.textContent = erreur
+    const fin = debutAnneau !== null ? debutAnneau + 0.3 : debutB + DUREE
+    return Math.max(0, (fin - maintenant()) * 1000)
+  }
+
+  // Pastille ronde d'un compte (photo ou initiale), pour la barre de menus et les menus.
+  window.iconeCompte = ({ nom, couleur, photo }, taille = 32) => policePrete.then(() => new Promise((resolve) => {
+    const c = document.createElement('canvas')
+    c.width = c.height = taille
+    const g = c.getContext('2d')
+    g.beginPath(); g.arc(taille / 2, taille / 2, taille / 2, 0, Math.PI * 2); g.clip()
+    g.fillStyle = couleur
+    g.fillRect(0, 0, taille, taille)
+    const fin = () => resolve(c.toDataURL('image/png'))
+    if (!photo) {
+      g.fillStyle = '#fff'
+      g.font = `600 ${Math.round(taille * 0.5)}px Geist, system-ui, sans-serif`
+      g.textAlign = 'center'; g.textBaseline = 'middle'
+      g.fillText(nom.slice(0, 1).toUpperCase(), taille / 2, taille / 2 + taille * 0.04)
+      return fin()
+    }
+    const img = new Image()
+    img.onload = () => { g.drawImage(img, 0, 0, taille, taille); fin() }
+    img.onerror = fin
+    img.src = photo
+  }))
+</script>
+</body>
+</html>

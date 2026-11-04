@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Volte</title>
+<style>
+  @font-face { font-family: "Geist"; src: url("polices/geist.woff2") format("woff2"); font-weight: 100 900; }
+  :root {
+    --laterale: transparent;
+    --contenu: #f5f5f7;
+    --groupe: #ffffff;
+    --texte: #1d1d1f;
+    --doux: #6e6e73;
+    --trait: rgba(0, 0, 0, 0.08);
+    --survol: rgba(0, 0, 0, 0.05);
+    --choisi: rgba(0, 0, 0, 0.08);
+    --champ: #ffffff;
+    --champ-bord: rgba(0, 0, 0, 0.14);
+    --touche: #f2f2f4;
+    --accent: #0a84ff;
+    --danger: #e5484d;
+  }
+  :root[data-theme="dark"] {
+    --laterale-win: #2a2a2d;
+    --contenu: #1e1e20;
+    --groupe: #2a2a2d;
+    --texte: #f5f5f7;
+    --doux: #98989d;
+    --trait: rgba(255, 255, 255, 0.08);
+    --survol: rgba(255, 255, 255, 0.06);
+    --choisi: rgba(255, 255, 255, 0.1);
+    --champ: #1f1f22;
+    --champ-bord: rgba(255, 255, 255, 0.14);
+    --touche: #3a3a3d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --contenu: #1e1e20;
+      --groupe: #2a2a2d;
+      --texte: #f5f5f7;
+      --doux: #98989d;
+      --trait: rgba(255, 255, 255, 0.08);
+      --survol: rgba(255, 255, 255, 0.06);
+      --choisi: rgba(255, 255, 255, 0.1);
+      --champ: #1f1f22;
+      --champ-bord: rgba(255, 255, 255, 0.14);
+      --touche: #3a3a3d;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: transparent; }
+  body {
+    font: 13px/1.45 "Geist", -apple-system, "Segoe UI", system-ui, sans-serif;
+    letter-spacing: -0.003em;
+    color: var(--texte);
+    -webkit-user-select: none;
+    cursor: default;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: default; }
+
+  /* Barre latérale : translucide (vibrancy de macOS), comme les réglages système. */
+  .laterale { padding: 52px 10px 12px; display: flex; flex-direction: column; -webkit-app-region: drag; background: var(--laterale); }
+  /* Windows : pas de flou natif ni de feux tricolores dans la barre latérale. */
+  :root[data-os="win32"] { --laterale: #e9e9ec; }
+  :root[data-os="win32"][data-theme="dark"] { --laterale: #2a2a2d; }
+  @media (prefers-color-scheme: dark) { :root[data-os="win32"]:not([data-theme="light"]) { --laterale: #2a2a2d; } }
+  :root[data-os="win32"] .laterale { padding-top: 16px; }
+  :root[data-os="win32"] .barre-titre { height: 24px; }
+  .laterale > * { -webkit-app-region: no-drag; }
+  .titre-section { padding: 0 10px 6px; font-size: 11px; font-weight: 600; color: var(--doux); }
+  .element {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 6px 10px; border: 0; border-radius: 7px; background: none; text-align: left;
+  }
+  .element:hover { background: var(--survol); }
+  .element.choisi { background: var(--choisi); }
+  .element .raccourci-mini { margin-left: auto; color: var(--doux); font-size: 12px; }
+  .liste { display: flex; flex-direction: column; gap: 2px; }
+  .ajouter { margin-top: 4px; color: var(--doux); }
+  .ajouter svg, .element svg.ico { width: 24px; height: 24px; padding: 5px; flex: none; }
+  .pied { margin-top: auto; }
+
+  .pastille {
+    flex: none; border-radius: 50%;
+    display: grid; place-items: center;
+    color: #fff; font-weight: 600;
+    background-size: cover; background-position: center;
+  }
+
+  /* Contenu */
+  .contenu { background: var(--contenu); overflow-y: auto; padding: 0 32px 32px; }
+  .barre-titre { height: 52px; -webkit-app-region: drag; }
+  .entete { display: flex; align-items: center; gap: 18px; margin-bottom: 24px; }
+  .entete .pastille { width: 72px; height: 72px; font-size: 28px; }
+  .entete h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.03em; }
+  .entete .sous { color: var(--doux); margin-top: 2px; }
+  .actions { display: flex; gap: 8px; margin-top: 10px; }
+  .bouton {
+    padding: 3px 12px; border-radius: 6px;
+    background: var(--groupe); border: 1px solid var(--champ-bord);
+  }
+  .bouton:active { background: var(--survol); }
+  .lien-danger { border: 0; background: none; padding: 0; color: var(--danger); }
+
+  h2 { font-size: 13px; font-weight: 600; margin: 24px 0 8px 2px; }
+  .groupe { background: var(--groupe); border-radius: 10px; border: 1px solid var(--trait); }
+  .rangee {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    min-height: 44px; padding: 8px 14px;
+  }
+  .rangee + .rangee { border-top: 1px solid var(--trait); }
+  .rangee .aide { color: var(--doux); font-size: 12px; }
+  .rangee .erreur { color: var(--danger); font-size: 12px; }
+  .note { color: var(--doux); font-size: 12px; margin: 8px 2px 0; }
+
+  input[type="text"], select {
+    width: 220px; padding: 4px 8px;
+    background: var(--champ); border: 1px solid var(--champ-bord); border-radius: 6px; outline: none;
+  }
+  input[type="text"]:focus, select:focus, .enregistreur:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25); }
+  select { width: auto; }
+
+  .nuancier { display: flex; gap: 8px; }
+  .nuance { width: 20px; height: 20px; border-radius: 50%; border: 0; padding: 0; }
+  .nuance.choisie { box-shadow: 0 0 0 2px var(--groupe), 0 0 0 4px var(--nuance); }
+
+  .enregistreur {
+    display: flex; align-items: center; gap: 4px;
+    min-width: 150px; height: 28px; padding: 0 6px 0 8px;
+    background: var(--champ); border: 1px solid var(--champ-bord); border-radius: 6px; outline: none;
+  }
+  .enregistreur .vide { color: var(--doux); }
+  .touche {
+    min-width: 20px; padding: 0 5px; height: 20px; line-height: 20px; text-align: center;
+    background: var(--touche); border-radius: 4px; font-size: 12px;
+  }
+  .enregistreur .effacer {
+    margin-left: auto; width: 18px; height: 18px; border: 0; border-radius: 50%;
+    background: var(--survol); color: var(--doux); font-size: 11px; line-height: 18px;
+  }
+  .enregistreur.ecoute { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25); }
+
+  .interrupteur { position: relative; width: 38px; height: 22px; flex: none; }
+  .interrupteur input { position: absolute; opacity: 0; inset: 0; margin: 0; }
+  .interrupteur span { position: absolute; inset: 0; border-radius: 11px; background: var(--champ-bord); transition: background 0.2s; }
+  .interrupteur span::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: transform 0.2s;
+  }
+  .interrupteur input:checked + span { background: #30a46c; }
+  .interrupteur input:checked + span::after { transform: translateX(16px); }
+
+  .dossier { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--doux); -webkit-user-select: text; }
+  .bas { margin-top: 28px; display: flex; align-items: center; justify-content: space-between; }
+</style>
+</head>
+<body>
+  <nav class="laterale" id="laterale"></nav>
+  <main class="contenu"><div class="barre-titre"></div><div id="vue"></div></main>
+<script>
+  const NUANCES = ['#D97757', '#E5484D', '#F5A524', '#30A46C', '#12A594', '#3B82F6', '#6E56CF', '#8E8E93']
+  const MAC = window.volte.plateforme === 'darwin'
+  document.documentElement.dataset.os = window.volte.plateforme
+  const SYMBOLES = MAC
+    ? { CommandOrControl: '⌘', Command: '⌘', Control: '⌃', Alt: '⌥', Shift: '⇧' }
+    : { CommandOrControl: 'Ctrl', Control: 'Ctrl', Alt: 'Alt', Shift: 'Maj', Super: 'Win' }
+  let config, photos
+  let vue = null // id de compte ou 'general'
+  let erreurs = {}
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+  const compte = (id) => config.comptes.find((c) => c.id === id)
+
+  function pastille(c, taille) {
+    const url = photos[c.id]
+    return `<span class="pastille" style="width:${taille}px;height:${taille}px;font-size:${Math.round(taille * 0.42)}px;background-color:${c.couleur};${url ? `background-image:url('${url}')` : ''}">${url ? '' : esc(c.nom.slice(0, 1).toUpperCase())}</span>`
+  }
+  const touches = (acc) => acc ? acc.split('+').map((k) => `<span class="touche">${esc(SYMBOLES[k] || k)}</span>`).join('') : ''
+  const touchesTexte = (acc) => acc ? acc.split('+').map((k) => SYMBOLES[k] || k).join(MAC ? '' : '+') : ''
+
+  async function enregistrer() {
+    erreurs = await window.volte.enregistrer(config)
+    rendre()
+  }
+  let minuteur
+  const enregistrerBientot = () => { clearTimeout(minuteur); minuteur = setTimeout(enregistrer, 300) }
+
+  // --- Barre latérale -------------------------------------------------------
+  function rendreLaterale() {
+    document.getElementById('laterale').innerHTML = `
+      <div class="titre-section">Comptes</div>
+      <div class="liste">
+        ${config.comptes.map((c) => `
+          <button class="element ${vue === c.id ? 'choisi' : ''}" data-vue="${c.id}">
+            ${pastille(c, 24)}<span>${esc(c.nom)}</span>
+            <span class="raccourci-mini">${esc(touchesTexte(c.raccourci))}</span>
+          </button>`).join('')}
+        <button class="element ajouter" id="ajouter">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg>
+          <span>Ajouter un compte</span>
+        </button>
+      </div>
+      <div class="pied">
+        <button class="element ${vue === 'general' ? 'choisi' : ''}" data-vue="general">
+          <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>
+          <span>Général</span>
+        </button>
+      </div>`
+    document.querySelectorAll('[data-vue]').forEach((b) => b.onclick = () => { vue = b.dataset.vue; rendre() })
+    document.getElementById('ajouter').onclick = ajouterCompte
+  }
+
+  // --- Vue d'un compte ------------------------------------------------------
+  function rendreCompte(c) {
+    const estPrincipal = !c.dossier
+    document.getElementById('vue').innerHTML = `
+      <div class="entete">
+        ${pastille(c, 72)}
+        <div>
+          <h1>${esc(c.nom)}</h1>
+          <div class="sous">${estPrincipal ? 'Compte principal' : 'Compte secondaire'}</div>
+          <div class="actions">
+            <button class="bouton" id="photo">${photos[c.id] ? 'Changer la photo' : 'Choisir une photo'}</button>
+            ${photos[c.id] ? '<button class="bouton" id="sans-photo">Retirer</button>' : ''}
+          </div>
+        </div>
+      </div>
+
+      <h2>Identité</h2>
+      <div class="groupe">
+        <div class="rangee"><span>Nom</span><input type="text" id="nom" value="${esc(c.nom)}" spellcheck="false"></div>
+        <div class="rangee"><span>Couleur</span>
+          <div class="nuancier">${NUANCES.map((n) => `<button class="nuance ${n === c.couleur ? 'choisie' : ''}" style="background:${n};--nuance:${n}" data-nuance="${n}" title="${n}"></button>`).join('')}</div>
+        </div>
+      </div>
+
+      <h2>Raccourci</h2>
+      <div class="groupe">
+        <div class="rangee">
+          <div><div>Basculer directement sur ce compte</div>${erreurs[c.id] ? `<div class="erreur">${esc(erreurs[c.id])}</div>` : ''}</div>
+          ${enregistreur('compte', c.raccourci)}
+        </div>
+      </div>
+
+      <h2>Données</h2>
+      <div class="groupe">
+        <div class="rangee"><span>Dossier</span><span class="dossier">${esc(estPrincipal ? 'Claude (par défaut)' : c.dossier)}</span></div>
+      </div>
+      <p class="note">Chaque compte garde sa propre session dans ce dossier, c'est ce qui évite de se reconnecter.</p>
+
+      ${estPrincipal ? '' : `<div class="bas"><button class="lien-danger" id="supprimer">Supprimer ce compte…</button></div>`}`
+
+    document.getElementById('nom').oninput = (e) => {
+      c.nom = e.target.value.trim() || 'Sans nom'
+      document.querySelector('.entete h1').textContent = c.nom
+      rendreLaterale()
+      enregistrerBientot()
+    }
+    document.querySelectorAll('[data-nuance]').forEach((b) => b.onclick = () => { c.couleur = b.dataset.nuance; enregistrer() })
+    document.getElementById('photo').onclick = async () => {
+      const r = await window.volte.choisirPhoto(c.id)
+      if (r) { c.photo = r.photo; photos[c.id] = r.url; rendre() }
+    }
+    const sans = document.getElementById('sans-photo')
+    if (sans) sans.onclick = async () => { await window.volte.retirerPhoto(c.id); c.photo = null; photos[c.id] = null; rendre() }
+    const sup = document.getElementById('supprimer')
+    if (sup) sup.onclick = () => {
+      if (!confirm(`Supprimer « ${c.nom} » de Volte ?\n\nSa session reste sur le disque : en recréant un compte, il faudra se reconnecter.`)) return
+      config.comptes = config.comptes.filter((x) => x !== c)
+      if (config.ouvrirAuDemarrage === c.id) config.ouvrirAuDemarrage = ''
+      vue = config.comptes[0].id
+      enregistrer()
+    }
+    brancherEnregistreur('compte', (acc) => { c.raccourci = acc; enregistrer() })
+  }
+
+  // --- Vue Général ----------------------------------------------------------
+  function rendreGeneral() {
+    document.getElementById('vue').innerHTML = `
+      <div class="entete"><div><h1>Général</h1><div class="sous">Raccourci et démarrage</div></div></div>
+
+      <h2>Raccourci</h2>
+      <div class="groupe">
+        <div class="rangee">
+          <div><div>Passer au compte suivant</div>${erreurs.general ? `<div class="erreur">${esc(erreurs.general)}</div>` : '<div class="aide">Fonctionne depuis n\'importe quelle app</div>'}</div>
+          ${enregistreur('general', config.raccourci)}
+        </div>
+      </div>
+
+      <h2>Démarrage</h2>
+      <div class="groupe">
+        <div class="rangee"><span>Lancer Volte à l'ouverture de session</span>
+          <label class="interrupteur"><input type="checkbox" id="auto" ${config.auDemarrage ? 'checked' : ''}><span></span></label>
+        </div>
+        <div class="rangee"><span>Au lancement, ouvrir Claude sur</span>
+          <select id="ouvrir">
+            <option value="">Ne rien ouvrir</option>
+            ${config.comptes.map((c) => `<option value="${c.id}" ${config.ouvrirAuDemarrage === c.id ? 'selected' : ''}>${esc(c.nom)}</option>`).join('')}
+          </select>
+        </div>
+      </div>`
+    document.getElementById('auto').onchange = (e) => { config.auDemarrage = e.target.checked; enregistrer() }
+    document.getElementById('ouvrir').onchange = (e) => { config.ouvrirAuDemarrage = e.target.value; enregistrer() }
+    brancherEnregistreur('general', (acc) => { config.raccourci = acc; enregistrer() })
+  }
+
+  // --- Enregistreur de raccourci ---------------------------------------------
+  const enregistreur = (cle, acc) => `
+    <div class="enregistreur" tabindex="0" data-enregistreur="${cle}">
+      ${acc ? touches(acc) : '<span class="vide">Aucun</span>'}
+      ${acc ? '<button class="effacer" title="Effacer">✕</button>' : ''}
+    </div>`
+
+  const TOUCHES_CODE = { Space: 'Space', Enter: 'Return', Tab: 'Tab', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Comma: ',', Period: '.', Slash: '/', Semicolon: ';', Quote: "'", BracketLeft: '[', BracketRight: ']', Backslash: '\\', Minus: '-', Equal: '=', Backquote: '`' }
+  function touche(e) {
+    if (/^Key[A-Z]$/.test(e.code)) return e.code.slice(3)
+    if (/^Digit\d$/.test(e.code)) return e.code.slice(5)
+    if (/^F\d{1,2}$/.test(e.code)) return e.code
+    return TOUCHES_CODE[e.code] || null
+  }
+
+  function brancherEnregistreur(cle, changer) {
+    const el = document.querySelector(`[data-enregistreur="${cle}"]`)
+    const efface = el.querySelector('.effacer')
+    if (efface) efface.onclick = (e) => { e.stopPropagation(); changer('') }
+    const arreter = () => { el.classList.remove('ecoute'); window.volte.suspendreRaccourcis(false) }
+    el.onclick = () => {
+      el.classList.add('ecoute')
+      el.innerHTML = '<span class="vide">Tape le raccourci…</span>'
+      window.volte.suspendreRaccourcis(true) // sinon le raccourci actuel se déclenche au lieu d'être capturé
+      el.focus()
+    }
+    el.onblur = () => { if (el.classList.contains('ecoute')) { arreter(); rendre() } }
+    el.onkeydown = (e) => {
+      if (!el.classList.contains('ecoute')) return
+      e.preventDefault()
+      if (e.key === 'Escape') { arreter(); return rendre() }
+      if ((e.key === 'Backspace' || e.key === 'Delete') && !e.metaKey && !e.ctrlKey && !e.altKey) { arreter(); return changer('') }
+      const k = touche(e)
+      const mods = (MAC
+        ? [e.metaKey && 'CommandOrControl', e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift']
+        : [e.ctrlKey && 'CommandOrControl', e.metaKey && 'Super', e.altKey && 'Alt', e.shiftKey && 'Shift']).filter(Boolean)
+      if (!k || !mods.length) return // il faut au moins un modificateur et une vraie touche
+      arreter()
+      changer([...mods, k].join('+'))
+    }
+  }
+
+  function ajouterCompte() {
+    const id = 'c' + Date.now().toString(36)
+    const libre = NUANCES.find((n) => !config.comptes.some((c) => c.couleur === n)) || NUANCES[0]
+    config.comptes.push({ id, nom: 'Nouveau compte', couleur: libre, dossier: `Claude-${id}`, photo: null, raccourci: '' })
+    vue = id
+    enregistrer().then(() => { const n = document.getElementById('nom'); n.focus(); n.select() })
+  }
+
+  function rendre() {
+    if (!vue || (vue !== 'general' && !compte(vue))) vue = config.comptes[0].id
+    rendreLaterale()
+    if (vue === 'general') rendreGeneral()
+    else rendreCompte(compte(vue))
+  }
+
+  window.volte.lire().then((r) => { ({ config, photos } = r); rendre() })
+</script>
+</body>
+</html>
