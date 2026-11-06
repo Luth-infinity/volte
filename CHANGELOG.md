@@ -1,5 +1,11 @@
 # Changelog
 
+## Prochaine version
+
+- Réglages : chaque compte affiche s'il est connecté, avec un bouton **Se connecter** qui ouvre Claude sur ce compte. Les comptes à connecter sont signalés dans la liste.
+- Windows : Claude installé depuis le nouvel installeur (paquet MSIX) est enfin trouvé.
+- Windows : une bascule ne ferme plus les sessions Claude Code ouvertes dans le terminal.
+
 ## 0.1.0 — 4 novembre 2026
 
 Première version.

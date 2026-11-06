@@ -63,7 +63,10 @@ async function actuel() {
   const dossier = claude.dossierDe(ligne)
   return (dossier && config.comptes.find((c) => c.dossier === dossier)) || principal()
 }
+// Dossier passé à Claude au lancement d'un compte secondaire.
 const dossierComplet = (c) => path.join(appData, c.dossier || 'Claude')
+// Dossier où Claude range vraiment les données du compte (le paquet Windows peut les déplacer).
+const dossierLu = (c) => claude.dossierReel(c.dossier) || dossierComplet(c)
 
 // --- Photos -----------------------------------------------------------------
 function carre(img) {
@@ -171,7 +174,7 @@ async function basculer(id) {
     afficher({ ...base, etape: 1 })
     // Chaque compte retient sa propre position de fenêtre : on donne à l'arrivant celle du partant,
     // pour que Claude rouvre sur le même écran, à la même place.
-    try { fs.copyFileSync(path.join(dossierComplet(courant), 'window-state.json'), path.join(dossierComplet(vers), 'window-state.json')) } catch {}
+    try { fs.copyFileSync(path.join(dossierLu(courant), 'window-state.json'), path.join(dossierLu(vers), 'window-state.json')) } catch {}
     claude.ouvrir(vers.dossier ? dossierComplet(vers) : null)
     for (let i = 0; !(await claude.tourne()) && i < 30; i++) await attendre(300)
     await attendre(1200) // le temps que la fenêtre de Claude apparaisse
@@ -186,6 +189,7 @@ async function basculer(id) {
     ecran.hide()
     occupe = false
     menu()
+    reglages?.webContents.send('etats')
   }
 }
 
@@ -209,7 +213,7 @@ function appliquerDemarrage() {
 // --- Barre de menus ---------------------------------------------------------
 async function menu() {
   if (!tray || occupe) return
-  const courant = ((await claude.tourne()) && (await actuel())) || compte(dernier) || principal()
+  const courant = (await actuel()) || compte(dernier) || principal()
   tray.setImage(await icone(courant))
   if (MAC) tray.setTitle(courant.nom)
   tray.setToolTip(`Volte — ${courant.nom}`)
@@ -284,6 +288,13 @@ ipcMain.handle('retirerPhoto', (_e, id) => {
   ecrireConfig()
   menu()
 })
+// État de connexion de chaque compte, et celui qui est ouvert dans Claude en ce moment.
+ipcMain.handle('etats', async () => {
+  const ouvert = await actuel()
+  return Object.fromEntries(config.comptes.map((c) => [c.id, { connecte: claude.connecte(c.dossier), ouvert: c === ouvert }]))
+})
+// Ouvre Claude sur ce compte : s'il n'est pas encore connecté, Claude affiche son écran de connexion.
+ipcMain.handle('connecter', (_e, id) => basculer(id))
 ipcMain.handle('suspendreRaccourcis', (_e, oui) => (oui ? globalShortcut.unregisterAll() : appliquerRaccourcis()))
 
 // --- Démo : captures de l'écran de transition et des réglages -------------
@@ -314,9 +325,9 @@ async function demo() {
     // La capture ne contient pas le flou natif de la barre latérale : on le remplace par un aplat.
     await w.webContents.executeJavaScript(`document.documentElement.dataset.theme = '${theme}';
       document.querySelector('.laterale').style.background = '${theme === 'dark' ? '#2b2b2e' : '#e6e6e9'}'`)
-    for (const [nom, vue] of [['compte', config.comptes[1].id], ['general', 'general']]) {
+    for (const [nom, vue] of [['principal', config.comptes[0].id], ['compte', config.comptes[1].id], ['general', 'general']]) {
       await w.webContents.executeJavaScript(`document.querySelector('[data-vue="${vue}"]').click()`)
-      await attendre(400)
+      await attendre(1500) // le temps de lire l'état de connexion des comptes
       await capture(`reglages-${theme}-${nom}`, w)
     }
   }

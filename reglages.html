@@ -115,6 +115,13 @@
   .rangee .aide { color: var(--doux); font-size: 12px; }
   .rangee .erreur { color: var(--danger); font-size: 12px; }
   .note { color: var(--doux); font-size: 12px; margin: 8px 2px 0; }
+  .statut { display: flex; align-items: center; gap: 8px; }
+  .statut::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--doux); flex: none; }
+  .statut.ok::before { background: #30a46c; }
+  .rangee > .bouton { flex: none; white-space: nowrap; }
+  .bouton.principal { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .bouton:disabled { opacity: 0.5; }
+  .element .a-connecter { margin-left: auto; color: var(--doux); font-size: 11px; }
 
   input[type="text"], select {
     width: 220px; padding: 4px 8px;
@@ -168,6 +175,8 @@
     ? { CommandOrControl: '⌘', Command: '⌘', Control: '⌃', Alt: '⌥', Shift: '⇧' }
     : { CommandOrControl: 'Ctrl', Control: 'Ctrl', Alt: 'Alt', Shift: 'Maj', Super: 'Win' }
   let config, photos
+  let etats = {} // par compte : { connecte, ouvert }
+  let ouverture = null // compte en cours d'ouverture dans Claude
   let vue = null // id de compte ou 'general'
   let erreurs = {}
 
@@ -184,6 +193,7 @@
   async function enregistrer() {
     erreurs = await window.volte.enregistrer(config)
     rendre()
+    rafraichirEtats() // un compte ajouté n'a pas encore d'état
   }
   let minuteur
   const enregistrerBientot = () => { clearTimeout(minuteur); minuteur = setTimeout(enregistrer, 300) }
@@ -196,7 +206,9 @@
         ${config.comptes.map((c) => `
           <button class="element ${vue === c.id ? 'choisi' : ''}" data-vue="${c.id}">
             ${pastille(c, 24)}<span>${esc(c.nom)}</span>
-            <span class="raccourci-mini">${esc(touchesTexte(c.raccourci))}</span>
+            ${etats[c.id] && !etats[c.id].connecte
+              ? '<span class="a-connecter">À connecter</span>'
+              : `<span class="raccourci-mini">${esc(touchesTexte(c.raccourci))}</span>`}
           </button>`).join('')}
         <button class="element ajouter" id="ajouter">
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg>
@@ -228,6 +240,9 @@
           </div>
         </div>
       </div>
+
+      <h2>Connexion</h2>
+      <div class="groupe" id="connexion">${connexion(c)}</div>
 
       <h2>Identité</h2>
       <div class="groupe">
@@ -275,6 +290,52 @@
       enregistrer()
     }
     brancherEnregistreur('compte', (acc) => { c.raccourci = acc; enregistrer() })
+    brancherConnexion(c)
+  }
+
+  // --- Connexion d'un compte ---------------------------------------------------
+  // Se connecter = ouvrir Claude sur le dossier de ce compte : Claude affiche alors son propre écran de connexion.
+  function connexion(c) {
+    const e = etats[c.id]
+    if (!e) return '<div class="rangee"><span class="aide">Vérification…</span></div>'
+    const bouton = ouverture === c.id
+      ? '<button class="bouton" disabled>Ouverture…</button>'
+      : e.ouvert ? '<span class="aide">Ouvert dans Claude</span>'
+      : `<button class="bouton ${e.connecte ? '' : 'principal'}" id="connecter">${e.connecte ? 'Ouvrir dans Claude' : 'Se connecter'}</button>`
+    return `
+      <div class="rangee">
+        <div>
+          <div class="statut ${e.connecte ? 'ok' : ''}">${e.connecte ? 'Connecté' : 'Pas encore connecté'}</div>
+          ${e.connecte ? '' : `<div class="aide">Claude s'ouvre sur ce compte et te demande de te connecter.</div>`}
+        </div>
+        ${bouton}
+      </div>
+      ${e.connecte || !c.dossier ? '' : `
+      <div class="rangee"><div class="aide">Si le navigateur reprend un autre compte, déconnecte-toi de claude.ai ou passe par une fenêtre privée.</div></div>`}`
+  }
+  function brancherConnexion(c) {
+    const b = document.getElementById('connecter')
+    if (!b) return
+    b.onclick = async () => {
+      ouverture = c.id
+      rendreConnexion()
+      await window.volte.connecter(c.id)
+      ouverture = null
+      await rafraichirEtats()
+    }
+  }
+  function rendreConnexion() {
+    const zone = document.getElementById('connexion')
+    if (!zone || vue === 'general') return
+    zone.innerHTML = connexion(compte(vue))
+    brancherConnexion(compte(vue))
+  }
+  async function rafraichirEtats() {
+    const nouveaux = await window.volte.etats()
+    if (JSON.stringify(nouveaux) === JSON.stringify(etats)) return
+    etats = nouveaux
+    rendreLaterale()
+    rendreConnexion()
   }
 
   // --- Vue Général ----------------------------------------------------------
@@ -364,7 +425,11 @@
     else rendreCompte(compte(vue))
   }
 
-  window.volte.lire().then((r) => { ({ config, photos } = r); rendre() })
+  window.volte.lire().then((r) => { ({ config, photos } = r); rendre(); rafraichirEtats() })
+  // Suit la connexion faite dans Claude, sans avoir à rouvrir les réglages.
+  window.volte.surEtats(rafraichirEtats)
+  window.addEventListener('focus', rafraichirEtats)
+  setInterval(() => { if (!document.hidden && config) rafraichirEtats() }, 4000)
 </script>
 </body>
 </html>
