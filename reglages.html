@@ -341,7 +341,7 @@
   // --- Vue Général ----------------------------------------------------------
   function rendreGeneral() {
     document.getElementById('vue').innerHTML = `
-      <div class="entete"><div><h1>Général</h1><div class="sous">Raccourci et démarrage</div></div></div>
+      <div class="entete"><div><h1>Général</h1><div class="sous">Raccourci, démarrage et mises à jour</div></div></div>
 
       <h2>Raccourci</h2>
       <div class="groupe">
@@ -362,10 +362,41 @@
             ${config.comptes.map((c) => `<option value="${c.id}" ${config.ouvrirAuDemarrage === c.id ? 'selected' : ''}>${esc(c.nom)}</option>`).join('')}
           </select>
         </div>
-      </div>`
+      </div>
+
+      <h2>Mises à jour</h2>
+      <div class="groupe" id="maj"></div>`
+    rendreMaj()
     document.getElementById('auto').onchange = (e) => { config.auDemarrage = e.target.checked; enregistrer() }
     document.getElementById('ouvrir').onchange = (e) => { config.ouvrirAuDemarrage = e.target.value; enregistrer() }
     brancherEnregistreur('general', (acc) => { config.raccourci = acc; enregistrer() })
+  }
+
+  // --- Mises à jour ------------------------------------------------------------
+  async function rendreMaj() {
+    const m = await window.volte.maj()
+    const zone = document.getElementById('maj')
+    if (!zone) return
+    const texte = {
+      indisponible: 'Version de développement',
+      verification: 'Recherche en cours…',
+      'a-jour': 'Volte est à jour',
+      disponible: `Volte ${m.version} est disponible`,
+      telechargement: `Téléchargement de Volte ${m.version}…`,
+      prete: `Volte ${m.version} est prête à installer`,
+      erreur: 'Impossible de vérifier pour le moment',
+    }[m.statut]
+    const bouton = {
+      'a-jour': 'Rechercher', erreur: 'Réessayer',
+      disponible: 'Télécharger', prete: 'Redémarrer et installer',
+    }[m.statut]
+    zone.innerHTML = `
+      <div class="rangee">
+        <div><div>Version ${esc(m.version)}</div><div class="aide">${esc(texte)}</div></div>
+        ${bouton ? `<button class="bouton ${m.statut === 'prete' || m.statut === 'disponible' ? 'principal' : ''}" id="maj-action">${bouton}</button>` : ''}
+      </div>`
+    const b = document.getElementById('maj-action')
+    if (b) b.onclick = () => window.volte.majAction()
   }
 
   // --- Enregistreur de raccourci ---------------------------------------------
@@ -428,6 +459,7 @@
   window.volte.lire().then((r) => { ({ config, photos } = r); rendre(); rafraichirEtats() })
   // Suit la connexion faite dans Claude, sans avoir à rouvrir les réglages.
   window.volte.surEtats(rafraichirEtats)
+  window.volte.surMaj(() => { if (vue === 'general') rendreMaj() })
   window.addEventListener('focus', rafraichirEtats)
   setInterval(() => { if (!document.hidden && config) rafraichirEtats() }, 4000)
 </script>

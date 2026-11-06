@@ -9,5 +9,8 @@ contextBridge.exposeInMainWorld('volte', {
   etats: () => ipcRenderer.invoke('etats'),
   connecter: (id) => ipcRenderer.invoke('connecter', id),
   surEtats: (fn) => ipcRenderer.on('etats', () => fn()),
+  maj: () => ipcRenderer.invoke('maj'),
+  majAction: () => ipcRenderer.invoke('majAction'),
+  surMaj: (fn) => ipcRenderer.on('maj', () => fn()),
   suspendreRaccourcis: (oui) => ipcRenderer.invoke('suspendreRaccourcis', oui),
 })

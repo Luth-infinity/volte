@@ -1,6 +1,8 @@
 # Changelog
 
-## Prochaine version
+## 0.1.1 — 6 novembre 2026
+
+- Mises à jour : sur Windows, Volte télécharge les nouvelles versions tout seul et propose de redémarrer pour les installer. Sur Mac, une notification prévient qu'une version est disponible.
 
 - Réglages : chaque compte affiche s'il est connecté, avec un bouton **Se connecter** qui ouvre Claude sur ce compte. Les comptes à connecter sont signalés dans la liste.
 - Windows : Claude installé depuis le nouvel installeur (paquet MSIX) est enfin trouvé.

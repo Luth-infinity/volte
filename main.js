@@ -6,6 +6,7 @@ const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const claude = require('./claude')
+const maj = require('./maj')
 
 const MAC = process.platform === 'darwin'
 const DEMO = process.env.VOLTE_DEMO // dossier où écrire des captures, sans toucher à Claude
@@ -218,7 +219,12 @@ async function menu() {
   if (MAC) tray.setTitle(courant.nom)
   tray.setToolTip(`Volte — ${courant.nom}`)
   const icones = await Promise.all(config.comptes.map(icone))
+  const m = maj.etat()
+  const miseAJour = m.statut === 'prete' ? [{ label: `Redémarrer pour installer Volte ${m.version}`, click: maj.installer }, { type: 'separator' }]
+    : m.statut === 'disponible' ? [{ label: `Télécharger Volte ${m.version}…`, click: maj.ouvrirPage }, { type: 'separator' }]
+    : []
   tray.setContextMenu(Menu.buildFromTemplate([
+    ...miseAJour,
     ...config.comptes.map((c, i) => ({
       label: c.nom, type: 'checkbox', checked: c === courant, icon: icones[i],
       accelerator: c.raccourci || undefined, registerAccelerator: false,
@@ -295,6 +301,13 @@ ipcMain.handle('etats', async () => {
 })
 // Ouvre Claude sur ce compte : s'il n'est pas encore connecté, Claude affiche son écran de connexion.
 ipcMain.handle('connecter', (_e, id) => basculer(id))
+ipcMain.handle('maj', () => ({ version: app.getVersion(), plateforme: process.platform, ...maj.etat() }))
+ipcMain.handle('majAction', () => {
+  const m = maj.etat()
+  if (m.statut === 'prete') return maj.installer()
+  if (m.statut === 'disponible') return maj.ouvrirPage()
+  return maj.verifier()
+})
 ipcMain.handle('suspendreRaccourcis', (_e, oui) => (oui ? globalShortcut.unregisterAll() : appliquerRaccourcis()))
 
 // --- Démo : captures de l'écran de transition et des réglages -------------
@@ -346,6 +359,7 @@ app.whenReady().then(async () => {
   appliquerDemarrage()
   await menu()
   setInterval(menu, 5000) // suit aussi un Claude lancé à la main
+  maj.surveiller(() => { menu(); reglages?.webContents.send('maj') })
   const auLancement = compte(config.ouvrirAuDemarrage)
   if (auLancement) claude.tourne().then((oui) => oui || claude.ouvrir(auLancement.dossier ? dossierComplet(auLancement) : null))
 })
